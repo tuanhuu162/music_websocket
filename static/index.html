@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>HTML5 WebSocket Audio</title>
+</head>
+
+<body>
+
+    <p>
+        <button id="playBtn" disabled>Play</button>
+        <button id="stopBtn" disabled>Stop</button>
+        <!-- <button id="pauseBtn" disabled>Pause</button> -->
+        <audio id="audio" autoplay="autoplay" controls="controls"></audio>
+    </p>
+
+    <script src="https://cdn.jsdelivr.net/npm/neffos.js@0.1.27/dist/neffos.min.js"></script>
+    <script>
+        // `neffos` global variable is available now.
+        var scheme = document.location.protocol == "https:" ? "wss" : "ws";
+        var port = document.location.port ? ":" + document.location.port : "";
+        var wsURL = scheme + "://" + document.location.hostname + port + "/echo";
+
+        const enableJWT = true;
+        if (enableJWT) {
+            // This is just a signature and a payload of an example content, 
+            // please replace this with your logic.
+            //
+            // Add a random letter in front of the token to make it
+            // invalid and see that this client is not allowed to dial the websocket server.
+            const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjozMjEzMjF9.8waEX7-vPKACa-Soi1pQvW3Rl8QY-SUFcHKTLZI4mvU";
+            wsURL += "?token=" + token;
+        }
+
+        function handleError(reason) {
+            console.log(reason);
+            window.alert("error: see the dev console");
+        }
+
+        var currentPos = 0;
+
+
+        function handleNamespaceConnectedConn(nsConn) {
+            nsConn.emit("Hello from browser client side!");
+
+            let playBtn = document.getElementById("playBtn");
+
+            playBtn.disabled = false;
+            playBtn.onclick = function () {
+                nsConn.emit("audio", input);
+            };
+        }
+
+        function handleNamespaceDisconnectedConn(nsConn, msg) {
+            let stopBtn = document.getElementById("stopBtn");
+            
+            stopBtn.onclick = function () {
+                nsConn.emit("stop");
+                currentPos = 0;
+            };
+        }
+
+        const username = window.prompt("Your username?");
+
+        async function runExample() {
+            // You can omit the "default" and simply define only Events, the namespace will be an empty string"",
+            // however if you decide to make any changes on this example make sure the changes are reflecting inside the ../server.go file as well.
+            try {
+                const conn = await neffos.dial(wsURL, {
+                    default: { // "default" namespace.
+                        _OnNamespaceConnected: function (nsConn, msg) {
+                            handleNamespaceConnectedConn(nsConn)
+                        },
+                        _OnNamespaceDisconnect: function (nsConn, msg) {
+                            handleNamespaceDisconnectedConn(nsConn)
+                        },
+                        audio: function (nsConn, msg) { // "audio" event.
+                            // msg.Body is a []byte.
+                            console.log(msg.Body);
+
+                        }
+                    }
+                }, {
+                    headers: {
+                        "X-Username": username,
+                    }
+                });
+
+                // You can either wait to conenct or just conn.connect("connect")
+                // and put the `handleNamespaceConnectedConn` inside `_OnNamespaceConnected` callback instead.
+                // const nsConn = await conn.connect("default");
+                // nsConn.emit(...); handleNamespaceConnectedConn(nsConn);
+                conn.connect("default");
+
+            } catch (err) {
+                handleError(err);
+            }
+        }
+
+        runExample();
+    </script>
+
+    <!-- <script>
+        var a1 = document.getElementById('audio'),
+            a2 = new Audio(),
+            buffers = [];
+
+        function loadedMetadata() {
+            // Mute a1 audio.
+            a1.volume = 0;
+            // Setup a2 to be identical to a1, and play through there.
+            a2.mozSetup(a1.mozChannels, a1.mozSampleRate);
+        }
+
+        function audioAvailable(event) {
+            // Write the current framebuffer
+            var frameBuffer = event.frameBuffer; // frameBuffer is Float32Array
+            writeAudio(frameBuffer);
+        }
+
+        a1.addEventListener('MozAudioAvailable', audioAvailable, false);
+        a1.addEventListener('loadedmetadata', loadedMetadata, false);
+
+        function writeAudio(audioBuffer) {
+            // audioBuffer is Float32Array
+            buffers.push({ buffer: audioBuffer, position: 0 });
+
+            // If there's buffered data, write that
+            while (buffers.length > 0) {
+                var buffer = buffers[0].buffer;
+                var position = buffers[0].position;
+                var written = a2.mozWriteAudio(buffer.subarray(position));
+                // // If all data wasn't written, keep it in the buffers:
+                if (position + written < buffer.length) {
+                    buffers[0].position = position + written;
+                    break;
+                }
+                buffers.shift();
+            }
+        }
+    </script> -->
+</body>
+
+</html>
